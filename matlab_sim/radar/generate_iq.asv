@@ -1,0 +1,242 @@
+%% FMCW Radar - 2 RX Range / Doppler / Angle
+clear;
+clc;
+close all;
+
+addpath('../scenario')
+
+%% ============================================================
+% 1. Scenario
+% ============================================================
+
+scenarioFcn = @createScenario_approach;
+
+[scnro, egoVehicle, radar] = scenarioFcn();
+
+%% ============================================================
+% 2. Radar parameters
+% ============================================================
+
+fc = 77e9;
+c = physconst('LightSpeed');
+lambda = c / fc;
+
+bandwidth = 150e6;
+chirpDuration = 20e-6;
+
+numSamples = 128;
+numChirps = 64;
+numRx = 2;
+
+%% ADC sampling rate
+adcFs = numSamples / chirpDuration;
+
+%% Waveform sampling rate
+waveformFs = radar.Waveform.SampleRate;
+
+%% Chirp slope
+sweepSlope = bandwidth / chirpDuration;
+
+%% RX spacing
+d = lambda / 2;
+
+%% Range resolution
+rangeRes = c / (2 * bandwidth);
+
+%% Velocity resolution
+velocityRes = ...
+    lambda / (2 * numChirps * chirpDuration);
+
+fprintf("Range Resolution    : %.3f m\n", rangeRes);
+fprintf("Velocity Resolution : %.3f m/s\n", velocityRes);
+fprintf("ADC Fs              : %.2f MHz\n", adcFs/1e6);
+fprintf("Waveform Fs         : %.2f MHz\n", waveformFs/1e6);
+fprintf("Lambda              : %.3f mm\n", lambda*1000);
+fprintf("RX spacing          : %.3f mm\n\n", d*1000);
+
+%% ============================================================
+% 3. Simulation
+% ============================================================
+
+scnro.SampleTime = chirpDuration;
+
+% rawIQ(sample, chirp, rx)
+rawIQ = complex(zeros( ...
+    numSamples, ...
+    numChirps, ...
+    numRx));
+
+advance(scnro);
+
+%% waveformFs → adcFs resampling ratio
+[p, q] = rat(adcFs / waveformFs);
+
+fprintf("Resample ratio: %d / %d\n", p, q);
+
+%% ============================================================
+% 4. Acquire IQ
+% ============================================================
+
+for chirpIdx = 1:numChirps
+
+    poses = targetPoses(egoVehicle);
+    time = scnro.SimulationTime;
+
+    % TX waveform
+    txRef = radar.Waveform();
+
+    % RX waveform
+    % size:
+    % [waveformSamples × 2 RX]
+    [iqSig, ~] = radar(poses, time);
+
+    for rx = 1:numRx
+
+        %% Dechirp
+        beatHighFs = dechirp( ...
+            iqSig(:,rx), ...
+            txRef);
+
+        %% ADC-equivalent sampling rate로 downsample
+        beatADC = resample( ...
+            beatHighFs, ...
+            p, ...
+            q);
+
+        %% 정확히 128 samples 사용
+        if length(beatADC) < numSamples
+            error("Downsample된 데이터가 numSamples보다 작습니다.");
+        end
+
+        rawIQ(:, chirpIdx, rx) = ...
+            beatADC(1:numSamples);
+
+    end
+
+    advance(scnro);
+
+end
+
+fprintf("\nIQ acquisition complete\n");
+fprintf("rawIQ size = ");
+disp(size(rawIQ));
+
+%% ============================================================
+% 5. Window
+% ============================================================
+
+winRange = hamming(numSamples);
+
+winDoppler = hamming(numChirps).';
+
+%% ============================================================
+% 6. Range-Doppler FFT for both RX
+% ============================================================
+
+rdm = complex(zeros( ...
+    numSamples, ...
+    numChirps, ...
+    numRx));
+
+for rx = 1:numRx
+
+    iq = rawIQ(:,:,rx);
+
+    %% 2D window
+    iqWindowed = ...
+        iq .* winRange .* winDoppler;
+
+    %% Range FFT
+    rangeFFT = fft( ...
+        iqWindowed, ...
+        numSamples, ...
+        1);
+
+    %% Doppler FFT
+    dopplerFFT = fft( ...
+        rangeFFT, ...
+        numChirps, ...
+        2);
+
+    rdm(:,:,rx) = ...
+        fftshift(dopplerFFT, 2);
+
+end
+
+%% ============================================================
+% 5. Window
+% ============================================================
+
+winRange = hamming(numSamples);
+
+winDoppler = hamming(numChirps).';
+
+%% ============================================================
+% 6. Range-Doppler FFT for both RX
+% ============================================================
+
+rdm = complex(zeros( ...
+    numSamples, ...
+    numChirps, ...
+    numRx));
+
+for rx = 1:numRx
+
+    iq = rawIQ(:,:,rx);
+
+    %% 2D window
+    iqWindowed = ...
+        iq .* winRange .* winDoppler;
+
+    %% Range FFT
+    rangeFFT = fft( ...
+        iqWindowed, ...
+        numSamples, ...
+        1);
+
+    %% Doppler FFT
+    dopplerFFT = fft( ...
+        rangeFFT, ...
+        numChirps, ...
+        2);
+
+    rdm(:,:,rx) = ...
+        fftshift(dopplerFFT, 2);
+
+end
+%% ============================================================
+% 7. Combine RX power
+% ============================================================
+
+rdmPower = ...
+    abs(rdm(:,:,1)).^2 + ...
+    abs(rdm(:,:,2)).^2;
+
+%% 최대 peak
+[maxPower, maxIdx] = max(rdmPower(:));
+
+[rangeBinIdx, dopplerBinIdx] = ...
+    ind2sub(size(rdmPower), maxIdx);
+
+%% ============================================================
+% 8. Range / Velocity
+% ============================================================
+
+detectedRange = ...
+    (rangeBinIdx - 1) * rangeRes;
+
+detectedVelocity = ...
+    (dopplerBinIdx - numChirps/2 - 1) ...
+    * velocityRes;
+
+%% ============================================================
+% 13. RX phase debug
+% ============================================================
+
+phi1 = angle(z1);
+phi2 = angle(z2);
+
+fprintf("\nRX phase\n");
+fprintf("RX1 : %.2f deg\n", rad2deg(phi1));
+fprintf("RX2 : %.2f deg\n", rad2deg(phi2));
+fprintf("Δφ  : %.2f deg\n", rad2deg(deltaPhi));
