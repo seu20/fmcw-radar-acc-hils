@@ -1,6 +1,14 @@
 #pragma once
 
-template <typename T>   // 어떤 타입을 써도 사용할 수 있게
+#include <pthread.h>
+#include <queue>
+
+// 어떤 타입을 써도 사용할 수 있게 template 사용
+// RadarPacket (UDP로 수신 하는 radar 복소수 정보)
+// RadarFrame  (Packet들을 재조립한 Frame)
+template <typename T>   
+
+// 동시성을 부여한 queue
 class ThreadSafeQueue
 {
 private:
@@ -11,7 +19,35 @@ private:
     pthread_cond_t cond_;
 
 public:
-    void push(T value);
+    ThreadSafeQueue()
+    {
+        pthread_mutex_init(&mutex_, nullptr);
+        pthread_cond_init(&cond_, nullptr);
+    }
 
-    T pop();
+    ~ThreadSafeQueue()
+    {
+        pthread_mutex_destroy(&mutex_);
+        pthread_cond_destroy(&cond_);
+    }
+
+    void push(T value){
+        pthread_mutex_lock(&mutex_);
+        queue_.push(value);  
+        pthread_cond_signal(&cond_));     
+        pthread_mutex_unlock(&mutex);
+    }
+
+    // queue pop 하면서 값도 반환
+    T pop(){
+        pthread_mutex_lock(&mutex_);
+        while(queue_.empty())
+        {
+            pthread_cond_wait(&cond_, &mutex_); // queue가 비어있을때 blocking
+        }
+        queue_.pop();
+        
+        pthread_mutex_unlock(&mutex_);
+    }
 };
+
