@@ -1,20 +1,14 @@
 #pragma once
 #include <stdint.h>
 
-typedef struct {
-    uint32_t magic;
-    uint32_t frame_id;
+#pragma pack(push, 1)
 
-    uint16_t packet_id;
-    uint16_t packet_count;
+struct RadarPacketHeader
+{
+    uint32_t frame_id;      // 
+    uint16_t packet_id;     //
+    uint16_t packet_count;  // 
+    uint16_t payload_bytes; // 이번 frame에 총 몇개의 바이트가 차지하는지
+};
 
-    uint64_t simulation_timestamp_us;
-
-    uint16_t sample_count;
-    uint16_t chirp_count;
-
-    uint8_t  rx_count;
-    uint8_t  data_type;
-    uint16_t payload_bytes;
-} RadarPacketHeader;
-
+#pragma pack(pop)
