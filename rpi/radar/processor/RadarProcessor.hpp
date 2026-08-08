@@ -22,6 +22,3 @@ public:
     void stop();
 };
 
-
-Ra
-
