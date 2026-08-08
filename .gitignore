@@ -1,4 +1,5 @@
 build/
 Makefile
 .vscode/
-*/iq_data.h
+*iq_data.h
+*.asv
