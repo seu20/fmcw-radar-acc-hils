@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <sys/types.h>
 #include <string>
-
+#include <optional>
 class UDPSocket
 {
 private:
@@ -24,7 +24,9 @@ public:
   
     void bind(uint16_t port);
 
-    ssize_t receive(
+    // 값이 없으면 std::nullopt 반환
+    // 값이 있으면 receiver 크기 반환
+    std::optional<std::size_t> receive(
         uint8_t* buffer,
         std::size_t buffer_size
     );
@@ -35,6 +37,9 @@ public:
         const std::string &ip,
         uint16_t port
     );
+
+    // Timeout 설정, Blocking 방지
+    void set_receive_timeout(int timeout_us);
 
     int get_fd() const { return socket_fd_; }
 };

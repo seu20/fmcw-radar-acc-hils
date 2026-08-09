@@ -13,6 +13,10 @@ void *PacketReceiver::threadfunc(void *arg)
 
 void PacketReceiver::start()
 {
+    // UDP recvfrom() 타임아웃 설정 (100ms)
+    // 타임아웃되면 std::nullopt() 반환
+    udp_socket_.set_receive_timeout(100);
+
     running_ = true;
 
     pthread_create(
@@ -28,9 +32,10 @@ bool PacketReceiver::run()
     // 배열 최대 크기
     constexpr std::size_t BUFFER_SIZE = 1500;
     // 헤더 크기
-    constexpr std::size_t HEADER_SIZE = 12;
+    constexpr std::size_t HEADER_SIZE = 14;
     // 버퍼 배열
     uint8_t buffer[BUFFER_SIZE];
+
     while(running_)
     {
         try {
@@ -44,9 +49,19 @@ bool PacketReceiver::run()
 
             // recvfrom() 은 blocking 함수라 따로 blocking 구현 x
             // TO-DO: 여기서 blocking이면 stop() 해도 모르는거 해결해야함
-            ssize_t recv_len = udp_socket_.receive(buffer, BUFFER_SIZE) ; 
+            const auto recv_len = udp_socket_.receive(buffer, BUFFER_SIZE) ; 
 
-            if (recv_len >= HEADER_SIZE) // 헤더 크기 이상 들어왔으면
+            // Timeout 발생했으면 루프 건너뜀
+            if (!recv_len)
+            {
+                continue;
+            }
+
+            //정상적으로 수신 됐으면 optional 안에 있는 값 꺼낸다
+            const std::size_t bytes_received = *recv_len;
+
+            // 헤더 크기 이상 들어왔으면
+            if (bytes_received >= HEADER_SIZE) 
             {
                 // magic_id 대입
                 std::memcpy(&temp_32, buffer + offset, sizeof(header.magic_id));
@@ -54,8 +69,8 @@ bool PacketReceiver::run()
                 offset += sizeof(header.magic_id);
 
                 // frame_id 대입
-                std::memcpy(&temp_16, buffer + offset, sizeof(header.frame_id));
-                header.frame_id = ntohs(temp_16);
+                std::memcpy(&temp_32, buffer + offset, sizeof(header.frame_id));
+                header.frame_id = ntohl(temp_32);
                 offset += sizeof(header.frame_id);
 
                 //packet_id
@@ -77,8 +92,9 @@ bool PacketReceiver::run()
             {
                 continue;
             }
-
-            if (recv_len >= HEADER_SIZE + header.payload_bytes) // payload 크기 검사
+            
+            // payload 크기 검사
+            if (bytes_received >= HEADER_SIZE + header.payload_bytes) 
             {
                 // payload는 바이트 단위라 [uint8_t]
                 payload.assign(buffer + offset, buffer + offset + header.payload_bytes);
@@ -94,6 +110,8 @@ bool PacketReceiver::run()
             
             packet_queue_.push(packet);
         }
+
+        // 수신 실패 catch
         catch(const std::exception& e)
         {
             std::cerr << e.what() << '\n';
