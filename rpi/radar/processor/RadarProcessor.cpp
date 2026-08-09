@@ -31,7 +31,6 @@ void RadarProcessor::run()
 
 void RadarProcessor::stop()
 {
-    pthread_join(thread_id_, nullptr);
-    
     running_ = false;
+    pthread_join(thread_id_, nullptr);
 }
