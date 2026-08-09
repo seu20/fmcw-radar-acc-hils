@@ -14,11 +14,14 @@ public:
     UDPSocket();
     ~UDPSocket();
 
-    // 복사 금지
+    // 복사 금지  ( socket_fd 를 보유하고 있어서 이중 close 방지! )
+    UDPSocket(const UDPSocket&) = delete;
+    UDPSocket& operator=(const UDPSocket&) = delete;
 
-    // 이동 허용
+    // 이동 허용 ( std::move()를 활용한 이동은 가능 )
+    UDPSocket(UDPSocket&& other) noexcept;  
+    UDPSocket& operator=(UDPSocket&& other) noexcept;
   
-
     void bind(uint16_t port);
 
     ssize_t receive(

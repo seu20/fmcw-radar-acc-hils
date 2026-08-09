@@ -28,6 +28,38 @@ UDPSocket::~UDPSocket()
     }
 }
 
+UDPSocket::UDPSocket(UDPSocket &&other) noexcept
+{
+    // 이동 생성자
+    /*
+    UDPSocket a;
+    UDPSocket b(std::move(a));
+    */
+    // 남의 집 뺐기!
+    this->socket_fd_ = other.socket_fd_;
+    other.socket_fd_ = -1;
+}
+
+UDPSocket &UDPSocket::operator=(UDPSocket &&other) noexcept
+{
+    // 이동 대입 (원래 있는 객체를 내용 뺏기)
+    /*
+    UDPSocket b;
+    UDPSocket a;
+    b = std::move(a);
+    */
+    if (this != &other)
+    {
+        if (this->socket_fd_ >= 0)
+        {
+            ::close(this->socket_fd_);
+        }
+        this->socket_fd_ = other.socket_fd_;
+        other.socket_fd_ = -1;
+    }
+    return *this;
+}
+
 void UDPSocket::bind(uint16_t port)
 {
     sockaddr_in addr{};                             // {}로 구조체 초기화 해야함!
