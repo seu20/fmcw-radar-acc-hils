@@ -1,7 +1,7 @@
 #include "PacketReceiver.hpp"
 #include <iostream>
 #include <cstring>
-#include <netinet/in.h>
+#include <netinet/in.h>     // ntohs(), ntohl()
 #include <vector>
 
 void *PacketReceiver::threadfunc(void *arg)
@@ -80,6 +80,7 @@ bool PacketReceiver::run()
 
             if (recv_len >= HEADER_SIZE + header.payload_bytes) // payload 크기 검사
             {
+                // payload는 바이트 단위라 [uint8_t]
                 payload.assign(buffer + offset, buffer + offset + header.payload_bytes);
             }else
             {
