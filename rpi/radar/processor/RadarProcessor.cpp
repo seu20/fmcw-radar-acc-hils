@@ -21,11 +21,12 @@ void RadarProcessor::start()
     );
 }
 
-void RadarProcessor::run()
+ 
+bool RadarProcessor::run()
 {
     while(running_)
     {
-
+        // 뒤의 데이터 pop
     }
 }
 

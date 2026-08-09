@@ -1,9 +1,12 @@
 #pragma once
 #include <pthread.h>
 #include <atomic>
+#include <RadarFrame.hpp>
+#include <ThreadSafeQueue.hpp>
 
 class RadarProcessor {
 private:
+    ThreadSafeQueue<RadarFrame>& frame_queue_;
 
     pthread_t thread_id_;
 
@@ -13,11 +16,14 @@ private:
 
 public:
 
-    RadarProcessor():running_(false){}
+    RadarProcessor(ThreadSafeQueue<RadarFrame>& frame_queue):
+        running_(false),
+        frame_queue_(frame_queue)
+    {}
 
     void start();
 
-    void run();
+    bool run();
 
     void stop();
 };
