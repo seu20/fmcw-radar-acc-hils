@@ -8,6 +8,7 @@
 #include <cerrno>         // errno
 #include <cstring>        // std::strerror()
 #include <stdexcept>      // std::runtime_error
+#include <sys/time.h>     // timeval
 
 UDPSocket::UDPSocket()
 {
@@ -78,12 +79,12 @@ void UDPSocket::bind(uint16_t port)
     }
 }
 
-ssize_t UDPSocket::receive(uint8_t *buffer, std::size_t buffer_size
+std::optional<std::size_t> UDPSocket::receive(uint8_t *buffer, std::size_t buffer_size
     //sockaddr_in* dest_addr  
     // UDP는 굳이 송신자의 ip 번호 알아야할 필요없어서 제외
     )
 {
-    ssize_t recvlen = (::recvfrom(
+    const ssize_t recvlen = (::recvfrom(
             socket_fd_,
             buffer,             // 버퍼 배열
             buffer_size,        // 최대로 받을 수 있는 buffer
@@ -91,14 +92,27 @@ ssize_t UDPSocket::receive(uint8_t *buffer, std::size_t buffer_size
             nullptr,            // 송신자 ip 필요없으니 nullptr
             nullptr));
 
-    if (recvlen == -1)
-    {   
-        throw std::runtime_error{
-            std::string("UDP Receive failed: ") + std::strerror(errno)
-        };
+    // 수신 성공
+    if (recvlen >= 0)
+    {
+        return static_cast<std::size_t>(recvlen);
+    }
+    // 설정한 시간동안 메시지 안옴 ( 에번 루프 건너뜀 )
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+    {
+        return std::nullopt;
     }
 
-    return recvlen;
+    // signal 때문에 recvfrom이 중간에 깨어남: 이번 루프만 건너뜀
+    if (errno == EINTR)
+    {
+        return std::nullopt;
+    }
+
+    // 수신 실패함 (예외처리) 
+    throw std::runtime_error{
+        std::string("UDP Receive failed: ") + std::strerror(errno)
+    };
 }
 
 
@@ -151,4 +165,27 @@ ssize_t UDPSocket::send(const uint8_t *data, std::size_t data_size, const std::s
     }
 
     return sendlen;
+}
+
+void UDPSocket::set_receive_timeout(int timeout_ms)
+{
+    timeval timeout{};
+
+    timeout.tv_sec = timeout_ms/1000;
+    // 예시; 1005 ms
+    // 1005 % 1000 -> 5 * 1000 -> 5000us
+    timeout.tv_usec = (timeout_ms % 1000) * 1000;
+
+    // 타임아웃 설정
+    if (::setsockopt(
+            socket_fd_,
+            SOL_SOCKET,
+            SO_RCVTIMEO,
+            &timeout,
+            sizeof(timeout)) == -1)
+    {
+        throw std::runtime_error{ 
+            std::string("Set Receive Timeout Failed: ") + std::strerror(errno)
+        };
+    }
 }

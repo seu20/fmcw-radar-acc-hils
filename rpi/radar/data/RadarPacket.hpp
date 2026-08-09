@@ -8,7 +8,7 @@
 #define RADAR_MAGIC 0x52414452
 struct RadarPacketHeader {
     uint32_t magic_id;      
-    uint16_t frame_id;      
+    uint32_t frame_id;      
 
     uint16_t packet_id;     // 현재 몇개째인지
     uint16_t packet_count;  // 총 110 개 
