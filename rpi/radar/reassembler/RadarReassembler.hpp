@@ -18,9 +18,9 @@ struct FrameBuffer {
 
 class RadarReassembler {
 private:
-    ThreadSafeQueue<RadarFrame>& frame_queue_;
-
     ThreadSafeQueue<RadarPacket>& packet_queue_;
+
+    ThreadSafeQueue<RadarFrame>& frame_queue_;
 
     // [key: frame_id, value: FrameBuffer]
     std::unordered_map<uint32_t, FrameBuffer> frames_;
@@ -36,11 +36,11 @@ private:
 public:
 
     RadarReassembler(
-        ThreadSafeQueue<RadarFrame>& frame_queue,
-        ThreadSafeQueue<RadarPacket>& packet_queue):
+        ThreadSafeQueue<RadarPacket>& packet_queue,
+        ThreadSafeQueue<RadarFrame>& frame_queue):
         running_(false),
-        frame_queue_(frame_queue),
-        packet_queue_(packet_queue)
+        packet_queue_(packet_queue),
+        frame_queue_(frame_queue)
     {
     }
 

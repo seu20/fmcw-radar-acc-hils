@@ -43,11 +43,12 @@ public:
         pthread_mutex_lock(&mutex_);
         while(queue_.empty())
         {
-            pthread_cond_wait(&cond_, &mutex_); // queue가 비어있을때 blocking
+            // mutex 언락하고 바로 잠들기 위해 mutex를 인자로 갖고있음
+            // queue 비어있으면 blocking
+            pthread_cond_wait(&cond_, &mutex_); 
         }
         queue_.pop();
         
         pthread_mutex_unlock(&mutex_);
     }
 };
-

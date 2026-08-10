@@ -52,7 +52,8 @@ bool PacketReceiver::run()
             const auto recv_len = udp_socket_.receive(buffer, BUFFER_SIZE) ; 
 
             // Timeout 발생했으면 루프 건너뜀
-            if (!recv_len)
+            // 에러는 아니라서 그냥 건너뛰고 다음 루프 가면 됨
+            if (recv_len == std::nullopt)
             {
                 continue;
             }
@@ -112,6 +113,7 @@ bool PacketReceiver::run()
         }
 
         // 수신 실패 catch
+        // 이건 에러라 바로 리턴
         catch(const std::exception& e)
         {
             std::cerr << e.what() << '\n';

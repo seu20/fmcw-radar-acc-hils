@@ -24,9 +24,10 @@ void RadarProcessor::start()
  
 bool RadarProcessor::run()
 {
+    // RadarFrame pop 하고 일음
     while(running_)
     {
-        // 뒤의 데이터 pop
+        
     }
 }
 

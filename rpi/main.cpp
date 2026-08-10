@@ -3,6 +3,8 @@
 #include "RadarFrame.hpp"
 #include "RadarPacket.hpp"
 #include "PacketReceiver.hpp"
+#include "RadarReassembler.hpp"
+#include "RadarProcessor.hpp"
 
 #include <iostream>     // std::cerr
 #include <exception>    // std::exception
@@ -22,12 +24,23 @@ int main(int argv, char* args[])
         UDPSocket udp_socket;
         udp_socket.bind(RPI_PORT);
 
-        // queue 생성
+        // queue 생성 (radar packet, radar frame)
         ThreadSafeQueue<RadarPacket> packet_queue;
+        ThreadSafeQueue<RadarFrame> frame_queue;
 
-        // 스레드 객체 생성
+        // UDP 스레드 객체 생성
         PacketReceiver receiver_thread(packet_queue, std::move(udp_socket));
-        receiver_thread.run();
+
+        // Packet Reassembler 스레드 생성
+        RadarReassembler packet_reassembler(packet_queue, frame_queue);
+
+        // Radar Processor 스레드 생성
+        RadarProcessor radar_processor(frame_queue);
+
+
+        
+        packet_reassembler.start();
+        receiver_thread.start();
     }
     catch (const std::exception& e)
     {
