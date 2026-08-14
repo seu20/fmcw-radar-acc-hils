@@ -119,9 +119,10 @@ RadarProcessor::~RadarProcessor()
 
 void RadarProcessor::process(const RadarFrame& frame)
 {
-    // FrameID 가 순서대로 오지 않았다면 이번 프레임 건너뛰기 ( 최신 데이터가 중요하기 때문에 )
-    if (frame.frame_id <= last_frame_id_)
+    if (!is_first_frame_ && frame.frame_id <= last_frame_id_)
         return;
+    
+    is_first_frame_ = false;
 
     Range_FFT(frame.iq_data);
     Doppler_FFT();

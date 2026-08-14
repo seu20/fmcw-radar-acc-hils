@@ -23,7 +23,8 @@ private:
     // [range_bin][doppler_bin][rx]
     std::vector<std::complex<float>> rdm_;
 
-    int last_frame_id_;
+    uint32_t last_frame_id_;
+    bool is_first_frame_;
 
     // Hamming Window ( Spectral Lobe를 줄이기 위한 필터 )
     std::vector<float> range_hamming_window;
@@ -51,7 +52,8 @@ public:
     RadarProcessor(ThreadSafeQueue<RadarFrame>& frame_queue):
         frame_queue_(frame_queue),
         running_(false),
-        last_frame_id_(-1)
+        last_frame_id_(0),
+        is_first_frame_(true)
     {}
 
     ~RadarProcessor();

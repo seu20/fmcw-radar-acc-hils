@@ -73,6 +73,11 @@ add_executable(process_test
     tests/test_processing.cpp
 )
 
+target_include_directories(process_test
+    PUBLIC
+    tests/data/matlab_data
+)
+
 target_link_libraries(process_test
     PRIVATE
         radar_core
