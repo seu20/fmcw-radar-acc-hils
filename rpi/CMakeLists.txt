@@ -9,26 +9,31 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# --------------------------------------------------
-# 실행 파일 생성
-# --------------------------------------------------
-add_executable(radar_rpi
 
-    main.cpp
+# ==================================================
+# 외부 라이브러리 찾기
+# ==================================================
 
-    network/UDPSocket.cpp
+find_package(Threads REQUIRED)
 
-    radar/receiver/PacketReceiver.cpp
-    radar/reassembler/RadarReassembler.cpp
+find_library(
+    FFTW3F_LIBRARY
+    NAMES fftw3f
+    REQUIRED
+)
+# ==================================================
+# 프로젝트 라이브러리
+# ==================================================
+
+add_library(radar_core
     radar/processor/RadarProcessor.cpp
+    radar/reassembler/RadarReassembler.cpp
+    radar/receiver/PacketReceiver.cpp
+    network/UDPSocket.cpp
 )
 
-# --------------------------------------------------
-# Header 검색 경로
-# --------------------------------------------------
-# 헤더 검색 경로
-target_include_directories(radar_rpi
-    PRIVATE
+target_include_directories(radar_core
+    PUBLIC
     common
     network
     protocol
@@ -38,35 +43,41 @@ target_include_directories(radar_rpi
     radar/processor
 )
 
-# --------------------------------------------------
-# pthread
-# --------------------------------------------------
-find_package(Threads REQUIRED)
-
-# --------------------------------------------------
-# FFTW float 버전
-# --------------------------------------------------
-find_library(
-    FFTW3F_LIBRARY
-    NAMES fftw3f
-    REQUIRED
-)
-
-# --------------------------------------------------
-# Library Link
-# --------------------------------------------------
-target_link_libraries(radar_rpi
-    PRIVATE
+target_link_libraries(radar_core
+    PUBLIC
         Threads::Threads
         ${FFTW3F_LIBRARY}
 )
 
-# --------------------------------------------------
-# Compiler Warning
-# --------------------------------------------------
+# ==================================================
+# 실제 프로그램
+# ==================================================
+
+add_executable(radar_rpi
+    main.cpp
+)
+
 target_link_libraries(radar_rpi
     PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
+        radar_core
 )
+# ==================================================
+# GoogleTest
+# ==================================================
+
+enable_testing()
+
+find_package(GTest REQUIRED)
+
+add_executable(process_test
+    tests/test_processing.cpp
+)
+
+target_link_libraries(process_test
+    PRIVATE
+        radar_core
+        GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(process_test)

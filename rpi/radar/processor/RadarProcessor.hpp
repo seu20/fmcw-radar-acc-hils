@@ -35,7 +35,6 @@ private:
     fftwf_complex* doppler_in_ = nullptr;
     fftwf_complex* doppler_out_ = nullptr;
 
-    void init();
 
     static constexpr size_t rx_channels = 2;
     static constexpr size_t samples = 128;
@@ -52,6 +51,15 @@ public:
     {}
 
     ~RadarProcessor();
+
+    const std::vector<std::complex<float>>& getRDM() const
+    {
+        return rdm_;
+    }
+
+    void init();
+    
+    void process(const RadarFrame& frame);
 
     void start();
 
