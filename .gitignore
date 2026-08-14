@@ -2,4 +2,4 @@ build/
 .vscode/
 *iq_data.h
 *.asv
-tests/data/rpi_data
+rpi/tests/data/rpi_data
