@@ -26,14 +26,14 @@ private:
     int last_frame_id_;
 
     // FFT 관련 파라미터 
-    fftwf_plan range_plan_;
-    fftwf_plan doppler_plan_;
+    fftwf_plan range_plan_ = nullptr;
+    fftwf_plan doppler_plan_ = nullptr;
 
-    fftwf_complex* range_in_;
-    fftwf_complex* range_out_;
+    fftwf_complex* range_in_ = nullptr;
+    fftwf_complex* range_out_ = nullptr;
 
-    fftwf_complex* doppler_in_;
-    fftwf_complex* doppler_out_;
+    fftwf_complex* doppler_in_ = nullptr;
+    fftwf_complex* doppler_out_ = nullptr;
 
     void init();
 
