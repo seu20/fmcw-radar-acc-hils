@@ -203,6 +203,35 @@ fprintf('iq_data.h 생성 완료\n');
 fprintf('IQ elements : %d\n', IQ_TOTAL_SIZE);
 fprintf('Frame bytes : %d bytes\n', IQ_TOTAL_SIZE * 4);
 
+%% Export RDM -> CSV
+% rdm layout:
+% [range_bin][doppler_bin][rx]
+%
+% 각 CSV 크기:
+% 128 rows x 64 columns
+%
+% RX1 / RX2 각각 real, imag 분리 저장
+
+writematrix( ...
+    real(rdm(:,:,1)), ...
+    'rdm_rx1_real.csv');
+
+writematrix( ...
+    imag(rdm(:,:,1)), ...
+    'rdm_rx1_imag.csv');
+
+writematrix( ...
+    real(rdm(:,:,2)), ...
+    'rdm_rx2_real.csv');
+
+writematrix( ...
+    imag(rdm(:,:,2)), ...
+    'rdm_rx2_imag.csv');
+
+fprintf('RDM CSV export complete\n');
+fprintf('RDM size : %d x %d x %d\n', ...
+    numSamples, numChirps, numRx);
+
 %% 11. Range-Doppler Map
 rangeAxis = (0:numSamples-1) * rangeRes;
 

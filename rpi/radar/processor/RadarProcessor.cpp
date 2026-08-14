@@ -117,6 +117,19 @@ RadarProcessor::~RadarProcessor()
         fftwf_free(doppler_out_);
 }
 
+void RadarProcessor::process(const RadarFrame& frame)
+{
+    if (!is_first_frame_ && frame.frame_id <= last_frame_id_)
+        return;
+    
+    is_first_frame_ = false;
+
+    Range_FFT(frame.iq_data);
+    Doppler_FFT();
+
+    last_frame_id_ = frame.frame_id;
+}
+
 void RadarProcessor::start()
 {
     running_ = true;
@@ -137,7 +150,6 @@ void RadarProcessor::start()
     }
 }
 
- 
 bool RadarProcessor::run()
 {
     init();
@@ -156,14 +168,7 @@ bool RadarProcessor::run()
             break;
         }
 
-        // FrameID 가 순서대로 오지 않았다면 이번 프레임 건너뛰기 ( 최신 데이터가 중요하기 때문에 )
-        if (frame.frame_id <= last_frame_id_)   continue;
-
-        Range_FFT(frame.iq_data);
-
-        Doppler_FFT();
-
-        last_frame_id_ = frame.frame_id;
+        process(frame);
     }
     return true;
 }
