@@ -1,9 +1,18 @@
 #include "RadarProcessor.hpp"
+#include <stdexcept>      // std::runtime_error
+#include <cstring>        // std::strerror()
+#include <iostream>
 
 void *RadarProcessor::thread_func(void* arg)
 {
     RadarProcessor* self = static_cast<RadarProcessor*>(arg);
-    self->run();
+    try {
+        self->run();
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "[RadarProcessor] " << e.what() << std::endl;
+    }
     return nullptr;
 }
 
@@ -15,11 +24,23 @@ void RadarProcessor::init()
     range_in_  = fftwf_alloc_complex(128);     
     range_out_ = fftwf_alloc_complex(128);      
 
+    if (range_in_ == nullptr || range_out_ == nullptr)
+    {
+        throw std::runtime_error{
+            "Range Bin not created!"
+        };
+    }
 
     // Doppler FFT : 64 chrips
     doppler_in_  = fftwf_alloc_complex(64);
     doppler_out_ = fftwf_alloc_complex(64);
 
+    if (doppler_in_ == nullptr || doppler_out_ == nullptr)
+    {
+        throw std::runtime_error(
+            "Doppler Bin not created!"
+        );
+    }
     // Range FFT fft 설정
     range_plan_ = fftwf_plan_dft_1d(
         128,
@@ -39,22 +60,47 @@ void RadarProcessor::init()
     );
 }
 
+RadarProcessor::~RadarProcessor()
+{
+    if (range_in_ != nullptr)
+    {
+        fftwf_free(range_in_);
+    }
+    if (range_out_ != nullptr)
+    {
+        fftwf_free(range_out_);
+    }
+    if (doppler_in_ != nullptr)
+    {
+        fftwf_free(doppler_in_);
+    }
+    if (doppler_out_ != nullptr)
+    {
+        fftwf_free(doppler_out_);
+    }
+}
+
 void RadarProcessor::start()
 {
     running_ = true;
 
-    pthread_create(
+    int res = pthread_create(
             &thread_id_,
             nullptr,
             thread_func,
             this
     );
+    if (res < 0)
+    {
+        throw std::runtime_error(
+            std::string("Radar Processor Thread not Created!: ") + std::strerror(errno)
+        );
+    }
 }
 
  
 bool RadarProcessor::run()
 {
-    // 검사해야함 !! FFT 잘 만들어졌는지
     init();
 
     // RadarFrame pop 하고 읽음
@@ -147,8 +193,5 @@ void RadarProcessor::Doppler_FFT()
     }
 }
 
-// TODO : range_bin_, doppler_bin_ 실패 검사
 // TODO : range_fft_data 사이즈 설정, rdm_ 사이즈 설정
-// TODO : pthread_create 반환값 확인
 // TODO : pop()에서 블로킹 가능성
-// TODO : 소멸자에서 FFTW 포인터 free

@@ -51,6 +51,8 @@ public:
         last_frame_id_(-1)
     {}
 
+    ~RadarProcessor();
+
     void start();
 
     bool run();
