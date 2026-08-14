@@ -25,6 +25,10 @@ private:
 
     int last_frame_id_;
 
+    // Hamming Window ( Spectral Lobe를 줄이기 위한 필터 )
+    std::vector<float> range_hamming_window;
+    std::vector<float> doppler_hamming_window;
+    
     // FFT 관련 파라미터 
     fftwf_plan range_plan_ = nullptr;
     fftwf_plan doppler_plan_ = nullptr;
