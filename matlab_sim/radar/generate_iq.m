@@ -205,6 +205,32 @@ detections = ...
 detectedIdx = ...
     cutIdx(:,detections);
 
+%% Export CFAR Detection Map -> data/cfar_map.csv
+
+% [range][doppler]
+% 0 = Not detected
+% 1 = Detected
+cfarMap = zeros(numSamples, numChirps, 'uint8');
+
+for k = 1:size(detectedIdx, 2)
+
+    rangeBin = detectedIdx(1, k);
+    dopplerBin = detectedIdx(2, k);
+
+    cfarMap(rangeBin, dopplerBin) = 1;
+end
+
+%% data/ 폴더 생성
+dataDir = fullfile(pwd, 'data');
+
+if ~exist(dataDir, 'dir')
+    mkdir(dataDir);
+end
+
+%% CFAR Map CSV 저장
+writematrix( ...
+    cfarMap, ...
+    fullfile(dataDir, 'cfar_map.csv'));
 numDetections = ...
     size(detectedIdx, 2);
 

@@ -4,6 +4,8 @@
 #include <RadarFrame.hpp>
 #include <ThreadSafeQueue.hpp>
 #include <fftw3.h>          // FFT 라이브러리
+#include "Detection.hpp"
+#include "DBSCAN.hpp"
 
 class RadarProcessor {
 private:
@@ -26,6 +28,15 @@ private:
     // CA-CFAR 를 위한 rx_channels 개수의 rdm의 power 계산 배열
     // [range_bin][doppler_bin]
     std::vector<float> power_;
+
+    // CFAR 을 통한 detection
+    std::vector<uint8_t> detections_;
+
+    // CFAR detection 목록
+    std::vector<Detection> detected_points_;
+
+    // DBSCAN 객체
+    DBSCAN dbscan_;
 
     float angle_;
 
@@ -51,6 +62,28 @@ private:
     static constexpr size_t range_bins = 128;
     static constexpr size_t doppler_bins = 64;
 
+    // CFAR 용 상수
+    static constexpr int T_Range = 8;
+    static constexpr int T_Doppler = 4;
+    static constexpr int G_Range = 3;
+    static constexpr int G_Doppler = 3;
+
+    // N Cells
+    static constexpr int N_Cells = 
+        (
+            (2 * (G_Range + T_Range) + 1) * 
+            (2 * (G_Doppler + T_Doppler) + 1)
+        ) 
+        - 
+        (
+            (2 * G_Range + 1) * 
+            (2 * G_Doppler + 1)
+        );
+
+    // pfa (Probabilty False Alarm) = 1e-6
+    // pfa 를 통해 threshold multiplier 값을 도출 -> 14.14
+    static constexpr float alpha = 14.14f;
+
 public:
 
     RadarProcessor(ThreadSafeQueue<RadarFrame>& frame_queue):
@@ -66,6 +99,16 @@ public:
     const std::vector<std::complex<float>>& getRDM() const
     {
         return rdm_;
+    }
+
+    const std::vector<uint8_t>& getDetections() const
+    {
+        return detections_;
+    }
+
+    const std::vector<Detection>& getDetectedPoints() const
+    {
+        return detected_points_;
     }
 
     void init();

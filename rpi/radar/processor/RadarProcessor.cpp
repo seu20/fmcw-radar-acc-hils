@@ -4,7 +4,7 @@
 #include <cstring>        // std::strerror()
 #include <iostream>
 #include <cmath>
-
+#include <algorithm>
 
 void *RadarProcessor::thread_func(void* arg)
 {
@@ -32,6 +32,11 @@ void RadarProcessor::init()
     // Power 벡터 사이즈 초기화
     power_.resize(
         range_bins * doppler_bins
+    );
+    // Detections 벡터 초기화
+    detections_.assign(
+        range_bins * doppler_bins,
+        0
     );
 
     // Range FFT : 128 samples
@@ -114,7 +119,7 @@ void RadarProcessor::process(const RadarFrame& frame)
 
     Range_FFT(frame.iq_data);
     Doppler_FFT();
-
+    CFAR();
     last_frame_id_ = frame.frame_id;
 }
 
@@ -258,6 +263,75 @@ void RadarProcessor::PowerCalculation()
     }
 }
 
+void RadarProcessor::CFAR()
+{
+    // power 계산
+    PowerCalculation();
+    
+    // detections 벡터 초기화
+    std::fill(
+        detections_.begin(),
+        detections_.end(),
+        0
+    );
+
+    // detected_points_ 초기화
+    detected_points_.clear();
+    
+    // power : [range][doppler]
+    for (size_t range_bin = G_Range + T_Range; range_bin < (range_bins - (G_Range + T_Range)); ++range_bin)
+    {
+        for (size_t doppler_bin = G_Doppler + T_Doppler; doppler_bin < (doppler_bins - (G_Doppler + T_Doppler)); ++doppler_bin )
+        {
+            // Training 셀들의 총합 파워
+            float training_sum = 0;
+            
+            //Cut Cell
+            size_t cut = doppler_bins * range_bin + doppler_bin;
+
+            // Training Cell 의 평균 합산 ( Guard Cells & Cut Cell 제외 )
+            for (
+                size_t range_cell = range_bin - (G_Range + T_Range); 
+                range_cell <= range_bin + G_Range + T_Range; 
+                ++range_cell)
+            {
+                for (
+                    size_t doppler_cell = doppler_bin - (G_Doppler + T_Doppler); 
+                    doppler_cell <= doppler_bin + (G_Doppler + T_Doppler);
+                    ++doppler_cell
+                    )
+                {
+                    // Guard Cell 구역이나, Cut Cell 이면 continue
+                    // T 구역이면 합산
+                    size_t training_idx = doppler_bins * range_cell + doppler_cell;     // T 좌표
+                    if ( 
+                        range_cell >=  range_bin - G_Range && 
+                        range_cell <= range_bin + G_Range &&
+                        doppler_cell >= doppler_bin - G_Doppler &&
+                        doppler_cell <= doppler_bin + G_Doppler
+                    )
+                    {
+                        continue;
+                    }else{
+                        training_sum += power_[training_idx];
+                    }
+                }
+            }
+            float training_avg = training_sum / N_Cells;
+            if ( power_[cut] >= training_avg * alpha)
+            {
+                detections_[cut] = 1;
+                detected_points_.push_back(
+                    {
+                        range_bin,
+                        doppler_bin,
+                        power_[cut]
+                    }
+                );
+            }
+        }
+    }
+}
 
 // Range Doppler Map 의 RX0, RX1 성분을 이용해 각도 계산
 void RadarProcessor::AngleEstimation()
