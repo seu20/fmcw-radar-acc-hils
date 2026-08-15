@@ -42,6 +42,7 @@ target_include_directories(radar_core
     radar/receiver
     radar/reassembler
     radar/processor
+    radar/window
 )
 
 target_link_libraries(radar_core

@@ -1,8 +1,10 @@
 #include "RadarProcessor.hpp"
+#include "cheb_window.h"
 #include <stdexcept>      // std::runtime_error
 #include <cstring>        // std::strerror()
 #include <iostream>
 #include <cmath>
+
 
 void *RadarProcessor::thread_func(void* arg)
 {
@@ -27,24 +29,10 @@ void RadarProcessor::init()
     rdm_.resize(
         samples * doppler_bins * rx_channels
     );
-    // Range Hamming Window 사이즈 & 값 초기화
-    range_hamming_window.resize(samples);
-    for(size_t n = 0; n < samples; ++n)
-    {
-        range_hamming_window[n] = 
-            0.54f - 0.46f * std::cos(
-                (2.0f * M_PI * n) / (samples - 1)
-            );
-    }
-    // Doppler Hamming Window 사이즈 & 값 초기화
-    doppler_hamming_window.resize(chirps);
-    for(size_t n = 0; n < chirps; ++n)
-    {
-        doppler_hamming_window[n] = 
-            0.54f - 0.46f * std::cos(
-                (2.0f * M_PI * n) / (chirps - 1)
-            );
-    }
+    // Power 벡터 사이즈 초기화
+    power_.resize(
+        range_bins * doppler_bins
+    );
 
     // Range FFT : 128 samples
     range_in_  = fftwf_alloc_complex(samples);     
@@ -193,11 +181,9 @@ void RadarProcessor::Range_FFT(const std::vector<std::complex<float>>& iq_data)
 
                 auto iq = iq_data[idx];
 
-                float window = range_hamming_window[sample];
-
                 // Hamming Window 적용
-                range_in_[sample][0] = iq.real() * window;
-                range_in_[sample][1] = iq.imag() * window;
+                range_in_[sample][0] = iq.real() * range_cheb_window[sample];
+                range_in_[sample][1] = iq.imag() * range_cheb_window[sample];
             }
             // range_fft
             fftwf_execute(range_plan_);
@@ -230,10 +216,8 @@ void RadarProcessor::Doppler_FFT()
             {
                 size_t idx = (chirp * samples + range_bin) * rx_channels + rx;
 
-                float window = doppler_hamming_window[chirp];
-
-                doppler_in_[chirp][0] = range_fft_data_[idx].real() * window;
-                doppler_in_[chirp][1] = range_fft_data_[idx].imag() * window;
+                doppler_in_[chirp][0] = range_fft_data_[idx].real() * doppler_cheb_window[chirp];
+                doppler_in_[chirp][1] = range_fft_data_[idx].imag() * doppler_cheb_window[chirp];
             }
 
             fftwf_execute(doppler_plan_);
@@ -253,3 +237,40 @@ void RadarProcessor::Doppler_FFT()
     }
 }
 
+// CA-CFAR 로직을 위한 rdm의 power 계산 함수
+void RadarProcessor::PowerCalculation()
+{
+    // rdm : [range][doppler][rx]
+    // power : [range][doppler]
+    for (size_t range_bin = 0; range_bin < range_bins; ++range_bin)
+    {
+        for (size_t doppler_bin = 0; doppler_bin < doppler_bins; ++doppler_bin)
+        {
+            int power_idx = (doppler_bin + doppler_bins * range_bin);
+            float power_sum = 0;
+            for(size_t rx = 0; rx < rx_channels; ++rx)
+            {
+                int rdm_idx = (doppler_bin + doppler_bins * range_bin) * rx_channels + rx;
+                power_sum += std::norm(rdm_[rdm_idx]);
+            }
+            power_[power_idx] = power_sum;
+        }
+    }
+}
+
+
+// Range Doppler Map 의 RX0, RX1 성분을 이용해 각도 계산
+void RadarProcessor::AngleEstimation()
+{
+    for(size_t range_bin = 0 ; range_bin < range_bins ; ++range_bin )
+    {
+        for (size_t doppler_bin = 0; doppler_bin < doppler_bins; ++doppler_bin)
+        {
+            for(size_t rx = 0; rx < rx_channels; ++rx)
+            {
+                size_t idx = (doppler_bin + doppler_bins * range_bin) * rx_channels + rx;
+
+            }
+        }
+    }
+}

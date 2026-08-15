@@ -23,12 +23,16 @@ private:
     // [range_bin][doppler_bin][rx]
     std::vector<std::complex<float>> rdm_;
 
+    // CA-CFAR 를 위한 rx_channels 개수의 rdm의 power 계산 배열
+    // [range_bin][doppler_bin]
+    std::vector<float> power_;
+
+    float angle_;
+
     uint32_t last_frame_id_;
     bool is_first_frame_;
 
-    // Hamming Window ( Spectral Lobe를 줄이기 위한 필터 )
-    std::vector<float> range_hamming_window;
-    std::vector<float> doppler_hamming_window;
+
     
     // FFT 관련 파라미터 
     fftwf_plan range_plan_ = nullptr;
@@ -53,7 +57,8 @@ public:
         frame_queue_(frame_queue),
         running_(false),
         last_frame_id_(0),
-        is_first_frame_(true)
+        is_first_frame_(true),
+        angle_(0.0)
     {}
 
     ~RadarProcessor();
@@ -76,5 +81,11 @@ public:
     void Range_FFT(const std::vector<std::complex<float>>& iq_data);
 
     void Doppler_FFT();
+
+    void PowerCalculation();
+
+    void CFAR();
+
+    void AngleEstimation();
 };
 
