@@ -117,9 +117,20 @@ void RadarProcessor::process(const RadarFrame& frame)
     
     is_first_frame_ = false;
 
+    // 1. Range_FFT
     Range_FFT(frame.iq_data);
+    // 2. Doppler_FFT
     Doppler_FFT();
+    // 3. CFAR을 이용한 threshold 이상의 real target 검출
     CFAR();
+    // 4. DBSCAN을 활용한 clustering
+    dbscan_.scan(detected_points_);
+    // 5. Peak Detection - 각 cluster 중 power 가 가장 큰 peak 검출
+    PeakDetection(dbscan_.getClusters());
+    // 6. Angle 계산
+    AngleEstimation();
+    
+
     last_frame_id_ = frame.frame_id;
 }
 
@@ -333,18 +344,51 @@ void RadarProcessor::CFAR()
     }
 }
 
+void RadarProcessor::PeakDetection(const std::vector<Cluster>& clusters)
+{
+    peaks_.clear();
+    for (const auto& cluster : clusters)
+    {
+        auto max_it = std::max_element(
+            cluster.points.begin(),
+            cluster.points.end(),
+            [](const Detection& A, const Detection& B)
+            {
+                return A.power < B.power;
+            }
+        );
+        peaks_.push_back(
+            {
+                (*max_it).range_idx,
+                (*max_it).doppler_idx,
+                (*max_it).power
+            }
+        );
+    }
+}
+
 // Range Doppler Map 의 RX0, RX1 성분을 이용해 각도 계산
 void RadarProcessor::AngleEstimation()
 {
-    for(size_t range_bin = 0 ; range_bin < range_bins ; ++range_bin )
-    {
-        for (size_t doppler_bin = 0; doppler_bin < doppler_bins; ++doppler_bin)
-        {
-            for(size_t rx = 0; rx < rx_channels; ++rx)
-            {
-                size_t idx = (doppler_bin + doppler_bins * range_bin) * rx_channels + rx;
+    // 각도 결과 초기화
+    angles_.clear();
 
-            }
-        }
+    // 각 피크의 좌표를 rx1, rx2 rdm에서 비교
+    for( const auto& peak : peaks_ )
+    {
+        size_t range_idx = peak.range_idx;
+        size_t doppler_idx = peak.doppler_idx;
+
+        size_t idx_rx1 = (range_idx * doppler_bins + doppler_idx) * rx_channels;
+        size_t idx_rx2 = idx_rx1 + 1;
+
+        std::complex<float>& rx1_iq = rdm_[idx_rx1];
+        std::complex<float>& rx2_iq = rdm_[idx_rx2];
+
+        float radian = std::arg(rx1_iq * std::conj(rx2_iq));
+
+        float angle = std::asin(radian / M_PI);
+
+        angles_.push_back(angle);
     }
 }

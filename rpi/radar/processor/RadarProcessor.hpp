@@ -4,7 +4,7 @@
 #include <RadarFrame.hpp>
 #include <ThreadSafeQueue.hpp>
 #include <fftw3.h>          // FFT 라이브러리
-#include "Detection.hpp"
+#include "RadarTypes.hpp"
 #include "DBSCAN.hpp"
 
 class RadarProcessor {
@@ -35,8 +35,15 @@ private:
     // CFAR detection 목록
     std::vector<Detection> detected_points_;
 
+    // Peak 검출 결과
+    std::vector<Peak> peaks_;
+
+    // Angle 계산 결과
+    std::vector<float> angles_;
+
     // DBSCAN 객체
     DBSCAN dbscan_;
+
 
     float angle_;
 
@@ -44,7 +51,6 @@ private:
     bool is_first_frame_;
 
 
-    
     // FFT 관련 파라미터 
     fftwf_plan range_plan_ = nullptr;
     fftwf_plan doppler_plan_ = nullptr;
@@ -61,6 +67,10 @@ private:
     static constexpr size_t chirps = 64;
     static constexpr size_t range_bins = 128;
     static constexpr size_t doppler_bins = 64;
+
+    // 거리, 속도 resolution
+    static constexpr float range_resolution = 0.999f;
+    static constexpr float doppler_resolution = 1.521f;
 
     // CFAR 용 상수
     static constexpr int T_Range = 8;
@@ -129,6 +139,10 @@ public:
 
     void CFAR();
 
+    void PeakDetection(const std::vector<Cluster>& clusters);
+
     void AngleEstimation();
+
+    void TargetConversion();
 };
 
