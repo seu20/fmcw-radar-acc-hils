@@ -1,7 +1,8 @@
 #pragma once
 #include <pthread.h>
 #include <atomic>
-#include <RadarFrame.hpp>
+#include "RadarFrame.hpp"
+#include "TargetFrame.hpp"
 #include <ThreadSafeQueue.hpp>
 #include <fftw3.h>          // FFT 라이브러리
 #include "RadarTypes.hpp"
@@ -10,6 +11,8 @@
 class RadarProcessor {
 private:
     ThreadSafeQueue<RadarFrame>& frame_queue_;
+
+    ThreadSafeQueue<TargetFrame>& target_queue_;
 
     pthread_t thread_id_;
 
@@ -96,8 +99,11 @@ private:
 
 public:
 
-    RadarProcessor(ThreadSafeQueue<RadarFrame>& frame_queue):
+    RadarProcessor(
+        ThreadSafeQueue<RadarFrame>& frame_queue,
+        ThreadSafeQueue<TargetFrame>& target_queue) :
         frame_queue_(frame_queue),
+        target_queue_(target_queue),
         running_(false),
         last_frame_id_(0),
         is_first_frame_(true),
