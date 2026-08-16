@@ -42,6 +42,9 @@ target_include_directories(radar_core
     radar/receiver
     radar/reassembler
     radar/processor
+    radar/window
+    radar/detection
+    radar/clustering
 )
 
 target_link_libraries(radar_core
@@ -67,16 +70,23 @@ target_link_libraries(radar_rpi
 # ==================================================
 
 enable_testing()
-
 find_package(GTest REQUIRED)
+include(GoogleTest)
+
+
+# ==================================================
+# Test Processing
+# ==================================================
 
 add_executable(process_test
-    tests/test_processing.cpp
+    tests/src/test_processing.cpp
+    tests/src/test.cpp
 )
 
 target_include_directories(process_test
-    PUBLIC
-    tests/data/matlab_data
+    PRIVATE
+        tests/inc
+        tests/data/matlab_data
 )
 
 target_link_libraries(process_test
@@ -85,5 +95,29 @@ target_link_libraries(process_test
         GTest::gtest_main
 )
 
-include(GoogleTest)
 gtest_discover_tests(process_test)
+
+
+# ==================================================
+# Test CFAR
+# ==================================================
+
+add_executable(cfar_test
+    tests/src/test_cfar.cpp
+    tests/src/test.cpp
+)
+
+target_include_directories(cfar_test
+    PRIVATE
+        tests/inc
+        tests/data/matlab_data
+)
+
+target_link_libraries(cfar_test
+    PRIVATE
+        radar_core
+        GTest::gtest_main
+)
+
+gtest_discover_tests(cfar_test)
+

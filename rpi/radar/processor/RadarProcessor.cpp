@@ -1,8 +1,10 @@
 #include "RadarProcessor.hpp"
+#include "cheb_window.h"
 #include <stdexcept>      // std::runtime_error
 #include <cstring>        // std::strerror()
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 void *RadarProcessor::thread_func(void* arg)
 {
@@ -27,24 +29,15 @@ void RadarProcessor::init()
     rdm_.resize(
         samples * doppler_bins * rx_channels
     );
-    // Range Hamming Window 사이즈 & 값 초기화
-    range_hamming_window.resize(samples);
-    for(size_t n = 0; n < samples; ++n)
-    {
-        range_hamming_window[n] = 
-            0.54f - 0.46f * std::cos(
-                (2.0f * M_PI * n) / (samples - 1)
-            );
-    }
-    // Doppler Hamming Window 사이즈 & 값 초기화
-    doppler_hamming_window.resize(chirps);
-    for(size_t n = 0; n < chirps; ++n)
-    {
-        doppler_hamming_window[n] = 
-            0.54f - 0.46f * std::cos(
-                (2.0f * M_PI * n) / (chirps - 1)
-            );
-    }
+    // Power 벡터 사이즈 초기화
+    power_.resize(
+        range_bins * doppler_bins
+    );
+    // Detections 벡터 초기화
+    detections_.assign(
+        range_bins * doppler_bins,
+        0
+    );
 
     // Range FFT : 128 samples
     range_in_  = fftwf_alloc_complex(samples);     
@@ -124,8 +117,19 @@ void RadarProcessor::process(const RadarFrame& frame)
     
     is_first_frame_ = false;
 
+    // 1. Range_FFT
     Range_FFT(frame.iq_data);
+    // 2. Doppler_FFT
     Doppler_FFT();
+    // 3. CFAR을 이용한 threshold 이상의 real target 검출
+    CFAR();
+    // 4. DBSCAN을 활용한 clustering
+    dbscan_.scan(detected_points_);
+    // 5. Peak Detection - 각 cluster 중 power 가 가장 큰 peak 검출
+    PeakDetection(dbscan_.getClusters());
+    // 6. Angle 계산
+    AngleEstimation();
+    
 
     last_frame_id_ = frame.frame_id;
 }
@@ -193,11 +197,9 @@ void RadarProcessor::Range_FFT(const std::vector<std::complex<float>>& iq_data)
 
                 auto iq = iq_data[idx];
 
-                float window = range_hamming_window[sample];
-
                 // Hamming Window 적용
-                range_in_[sample][0] = iq.real() * window;
-                range_in_[sample][1] = iq.imag() * window;
+                range_in_[sample][0] = iq.real() * range_cheb_window[sample];
+                range_in_[sample][1] = iq.imag() * range_cheb_window[sample];
             }
             // range_fft
             fftwf_execute(range_plan_);
@@ -230,10 +232,8 @@ void RadarProcessor::Doppler_FFT()
             {
                 size_t idx = (chirp * samples + range_bin) * rx_channels + rx;
 
-                float window = doppler_hamming_window[chirp];
-
-                doppler_in_[chirp][0] = range_fft_data_[idx].real() * window;
-                doppler_in_[chirp][1] = range_fft_data_[idx].imag() * window;
+                doppler_in_[chirp][0] = range_fft_data_[idx].real() * doppler_cheb_window[chirp];
+                doppler_in_[chirp][1] = range_fft_data_[idx].imag() * doppler_cheb_window[chirp];
             }
 
             fftwf_execute(doppler_plan_);
@@ -253,3 +253,142 @@ void RadarProcessor::Doppler_FFT()
     }
 }
 
+// CA-CFAR 로직을 위한 rdm의 power 계산 함수
+void RadarProcessor::PowerCalculation()
+{
+    // rdm : [range][doppler][rx]
+    // power : [range][doppler]
+    for (size_t range_bin = 0; range_bin < range_bins; ++range_bin)
+    {
+        for (size_t doppler_bin = 0; doppler_bin < doppler_bins; ++doppler_bin)
+        {
+            int power_idx = (doppler_bin + doppler_bins * range_bin);
+            float power_sum = 0;
+            for(size_t rx = 0; rx < rx_channels; ++rx)
+            {
+                int rdm_idx = (doppler_bin + doppler_bins * range_bin) * rx_channels + rx;
+                power_sum += std::norm(rdm_[rdm_idx]);
+            }
+            power_[power_idx] = power_sum;
+        }
+    }
+}
+
+void RadarProcessor::CFAR()
+{
+    // power 계산
+    PowerCalculation();
+    
+    // detections 벡터 초기화
+    std::fill(
+        detections_.begin(),
+        detections_.end(),
+        0
+    );
+
+    // detected_points_ 초기화
+    detected_points_.clear();
+    
+    // power : [range][doppler]
+    for (size_t range_bin = G_Range + T_Range; range_bin < (range_bins - (G_Range + T_Range)); ++range_bin)
+    {
+        for (size_t doppler_bin = G_Doppler + T_Doppler; doppler_bin < (doppler_bins - (G_Doppler + T_Doppler)); ++doppler_bin )
+        {
+            // Training 셀들의 총합 파워
+            float training_sum = 0;
+            
+            //Cut Cell
+            size_t cut = doppler_bins * range_bin + doppler_bin;
+
+            // Training Cell 의 평균 합산 ( Guard Cells & Cut Cell 제외 )
+            for (
+                size_t range_cell = range_bin - (G_Range + T_Range); 
+                range_cell <= range_bin + G_Range + T_Range; 
+                ++range_cell)
+            {
+                for (
+                    size_t doppler_cell = doppler_bin - (G_Doppler + T_Doppler); 
+                    doppler_cell <= doppler_bin + (G_Doppler + T_Doppler);
+                    ++doppler_cell
+                    )
+                {
+                    // Guard Cell 구역이나, Cut Cell 이면 continue
+                    // T 구역이면 합산
+                    size_t training_idx = doppler_bins * range_cell + doppler_cell;     // T 좌표
+                    if ( 
+                        range_cell >=  range_bin - G_Range && 
+                        range_cell <= range_bin + G_Range &&
+                        doppler_cell >= doppler_bin - G_Doppler &&
+                        doppler_cell <= doppler_bin + G_Doppler
+                    )
+                    {
+                        continue;
+                    }else{
+                        training_sum += power_[training_idx];
+                    }
+                }
+            }
+            float training_avg = training_sum / N_Cells;
+            if ( power_[cut] >= training_avg * alpha)
+            {
+                detections_[cut] = 1;
+                detected_points_.push_back(
+                    {
+                        range_bin,
+                        doppler_bin,
+                        power_[cut]
+                    }
+                );
+            }
+        }
+    }
+}
+
+void RadarProcessor::PeakDetection(const std::vector<Cluster>& clusters)
+{
+    peaks_.clear();
+    for (const auto& cluster : clusters)
+    {
+        auto max_it = std::max_element(
+            cluster.points.begin(),
+            cluster.points.end(),
+            [](const Detection& A, const Detection& B)
+            {
+                return A.power < B.power;
+            }
+        );
+        peaks_.push_back(
+            {
+                (*max_it).range_idx,
+                (*max_it).doppler_idx,
+                (*max_it).power
+            }
+        );
+    }
+}
+
+// Range Doppler Map 의 RX0, RX1 성분을 이용해 각도 계산
+void RadarProcessor::AngleEstimation()
+{
+    // 각도 결과 초기화
+    angles_.clear();
+
+    // 각 피크의 좌표를 rx1, rx2 rdm에서 비교
+    for( const auto& peak : peaks_ )
+    {
+        size_t range_idx = peak.range_idx;
+        size_t doppler_idx = peak.doppler_idx;
+
+        size_t idx_rx1 = (range_idx * doppler_bins + doppler_idx) * rx_channels;
+        size_t idx_rx2 = idx_rx1 + 1;
+
+        std::complex<float>& rx1_iq = rdm_[idx_rx1];
+        std::complex<float>& rx2_iq = rdm_[idx_rx2];
+
+        float radian = std::arg(rx1_iq * std::conj(rx2_iq));
+
+        float angle = std::asin(radian / M_PI);
+
+        angles_.push_back(angle);
+    }
+}
