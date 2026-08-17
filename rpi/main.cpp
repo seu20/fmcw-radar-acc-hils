@@ -27,6 +27,7 @@ int main(int argv, char* args[])
         // queue 생성 (radar packet, radar frame)
         ThreadSafeQueue<RadarPacket> packet_queue;
         ThreadSafeQueue<RadarFrame> frame_queue;
+        ThreadSafeQueue<TargetFrame> target_queue;
 
         // UDP 스레드 객체 생성
         PacketReceiver receiver_thread(packet_queue, std::move(udp_socket));
@@ -35,7 +36,7 @@ int main(int argv, char* args[])
         RadarReassembler packet_reassembler(packet_queue, frame_queue);
 
         // Radar Processor 스레드 생성
-        RadarProcessor radar_processor(frame_queue);
+        RadarProcessor radar_processor(frame_queue, target_queue);
 
 
         

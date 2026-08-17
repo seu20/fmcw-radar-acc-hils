@@ -18,7 +18,8 @@ TEST(RadarProcessingTest, CFARSizeIsCorrect)
     frame.iq_data = move(iq_test);
 
     ThreadSafeQueue<RadarFrame> frame_queue;
-    RadarProcessor processor(frame_queue);
+    ThreadSafeQueue<TargetFrame> target_queue;
+    RadarProcessor processor(frame_queue, target_queue);
 
     processor.init();
     processor.process(frame);
@@ -65,7 +66,8 @@ TEST(RadarProcessingTest, CFARMatchesMatlab)
 
 
     ThreadSafeQueue<RadarFrame> frame_queue;
-    RadarProcessor processor(frame_queue);
+    ThreadSafeQueue<TargetFrame> target_queue;
+    RadarProcessor processor(frame_queue, target_queue);
 
     processor.init();
     processor.process(frame);

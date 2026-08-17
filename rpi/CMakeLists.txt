@@ -30,6 +30,8 @@ add_library(radar_core
     radar/processor/RadarProcessor.cpp
     radar/reassembler/RadarReassembler.cpp
     radar/receiver/PacketReceiver.cpp
+    radar/clustering/DBSCAN.cpp
+    radar/sender/TargetSender.cpp
     network/UDPSocket.cpp
 )
 
@@ -120,4 +122,74 @@ target_link_libraries(cfar_test
 )
 
 gtest_discover_tests(cfar_test)
+
+
+# ==================================================
+# Test DBSCAN
+# ==================================================
+
+add_executable(dbscan_test
+    tests/src/test_dbscan.cpp
+    tests/src/test.cpp
+)
+
+target_include_directories(dbscan_test
+    PRIVATE
+        tests/inc
+        tests/data/matlab_data
+)
+
+target_link_libraries(dbscan_test
+    PRIVATE
+        radar_core
+        GTest::gtest_main
+)
+
+gtest_discover_tests(dbscan_test)
+
+# ==================================================
+# Test Peak Detection
+# ==================================================
+
+add_executable(peak_test
+    tests/src/test_peak.cpp
+    tests/src/test.cpp
+)
+
+target_include_directories(peak_test
+    PRIVATE
+        tests/inc
+        tests/data/matlab_data
+)
+
+target_link_libraries(peak_test
+    PRIVATE
+        radar_core
+        GTest::gtest_main
+)
+
+gtest_discover_tests(peak_test)
+
+# ==================================================
+# Test Angle
+# ==================================================
+
+add_executable(angle_test
+    tests/src/test_angle.cpp
+    tests/src/test.cpp
+)
+
+target_include_directories(angle_test
+    PRIVATE
+        tests/inc
+        tests/data/matlab_data
+)
+
+target_link_libraries(angle_test
+    PRIVATE
+        radar_core
+        GTest::gtest_main
+)
+
+gtest_discover_tests(angle_test)
 
