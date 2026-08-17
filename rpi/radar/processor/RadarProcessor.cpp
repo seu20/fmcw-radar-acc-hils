@@ -129,7 +129,13 @@ void RadarProcessor::process(const RadarFrame& frame)
     PeakDetection(dbscan_.getClusters());
     // 6. Angle 계산
     AngleEstimation();
-    
+    // 7. TargetFrame queue에 push
+    target_queue_.push(
+        {
+            frame.frame_id,
+            std::move(TargetConversion())
+        }
+    );
 
     last_frame_id_ = frame.frame_id;
 }
@@ -385,10 +391,35 @@ void RadarProcessor::AngleEstimation()
         std::complex<float>& rx1_iq = rdm_[idx_rx1];
         std::complex<float>& rx2_iq = rdm_[idx_rx2];
 
-        float radian = std::arg(rx1_iq * std::conj(rx2_iq));
+        float radian = std::arg(rx2_iq * std::conj(rx1_iq));
 
         float angle = std::asin(radian / M_PI);
 
         angles_.push_back(angle);
     }
+}
+
+// Peak 와 Angle 벡터를 통해 한 frame에서 검출된 Target들의 벡터를 반환하는 함수
+std::vector<Target> RadarProcessor::TargetConversion() const
+{
+    std::vector<Target> found_Targets;
+    
+    for (size_t i = 0; i < peaks_.size(); ++i)
+    {
+        float distance = peaks_[i].range_idx * range_resolution;
+
+        int doppler_bin = static_cast<int>(peaks_[i].doppler_idx)
+                        - static_cast<int>(doppler_bins / 2);
+
+        float relative_velocity = doppler_bin * doppler_resolution;
+
+        found_Targets.push_back(
+            {
+                distance,
+                relative_velocity,
+                angles_[i]
+            }
+        );
+    }
+    return found_Targets;
 }

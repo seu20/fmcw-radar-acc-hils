@@ -149,6 +149,10 @@ public:
 
     void AngleEstimation();
 
-    void TargetConversion();
+    std::vector<Target> TargetConversion() const;
+
+    const std::vector<Peak>& getPeaks() const { return peaks_; }
+
+    const std::vector<float>& getAngles() const { return angles_; }
 };
 
