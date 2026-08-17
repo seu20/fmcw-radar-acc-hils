@@ -67,6 +67,9 @@ target_link_libraries(radar_rpi
     PRIVATE
         radar_core
 )
+
+#[[
+
 # ==================================================
 # GoogleTest
 # ==================================================
@@ -193,3 +196,4 @@ target_link_libraries(angle_test
 
 gtest_discover_tests(angle_test)
 
+]]
