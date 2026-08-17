@@ -5,21 +5,25 @@
 #include "PacketReceiver.hpp"
 #include "RadarReassembler.hpp"
 #include "RadarProcessor.hpp"
+#include "DBSCAN.hpp"
 
 #include <iostream>     // std::cerr
 #include <exception>    // std::exception
 #include <cstdlib>      // EXIT_SUCCESS, EXIT_FAILURE
 #include <utility>
 
-#define RPI_PORT        2000    //RPI의 UDP Port
+#define PC_IP           "10.0.0.2"  // PC의 IP
+#define PC_PORT
+#define RPI_IP          "10.0.0.3"  // RPI의 IP
+#define RPI_PORT        5000        // RPI의 UDP Port
 
 int main(int argv, char* args[])
 {
     /*
     1차 테스트:
-    - UDP 수신 검사 (packet_id, frame_id 검사)
-    - iq_data_recv.h 파일로 export
+    - UDP 수신 검사 
     */
+
     try {
         UDPSocket udp_socket;
         udp_socket.bind(RPI_PORT);
@@ -36,12 +40,14 @@ int main(int argv, char* args[])
         RadarReassembler packet_reassembler(packet_queue, frame_queue);
 
         // Radar Processor 스레드 생성
-        RadarProcessor radar_processor(frame_queue, target_queue);
+        // RadarProcessor radar_processor(frame_queue, target_queue);
 
 
-        
         packet_reassembler.start();
         receiver_thread.start();
+
+        while(1)
+        { }
     }
     catch (const std::exception& e)
     {
