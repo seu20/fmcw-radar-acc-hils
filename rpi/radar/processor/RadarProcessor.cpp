@@ -5,6 +5,8 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <chrono>
+#include <fstream>
 
 void *RadarProcessor::thread_func(void* arg)
 {
@@ -139,6 +141,7 @@ void RadarProcessor::process(const RadarFrame& frame)
 
     last_frame_id_ = frame.frame_id;
 }
+
 
 void RadarProcessor::start()
 {
@@ -284,7 +287,7 @@ void RadarProcessor::CFAR()
 {
     // power 계산
     PowerCalculation();
-    
+
     // detections 벡터 초기화
     std::fill(
         detections_.begin(),
@@ -294,50 +297,116 @@ void RadarProcessor::CFAR()
 
     // detected_points_ 초기화
     detected_points_.clear();
-    
-    // power : [range][doppler]
-    for (size_t range_bin = G_Range + T_Range; range_bin < (range_bins - (G_Range + T_Range)); ++range_bin)
-    {
-        for (size_t doppler_bin = G_Doppler + T_Doppler; doppler_bin < (doppler_bins - (G_Doppler + T_Doppler)); ++doppler_bin )
-        {
-            // Training 셀들의 총합 파워
-            float training_sum = 0;
-            
-            //Cut Cell
-            size_t cut = doppler_bins * range_bin + doppler_bin;
 
-            // Training Cell 의 평균 합산 ( Guard Cells & Cut Cell 제외 )
+
+    // ==================================================
+    // CFAR 계산 병렬화
+    // 각 (range_bin, doppler_bin) CUT은 서로 독립적
+    // ==================================================
+    #pragma omp parallel for collapse(2) schedule(static)
+    for (
+        size_t range_bin = G_Range + T_Range;
+        range_bin < range_bins - (G_Range + T_Range);
+        ++range_bin
+    )
+    {
+        for (
+            size_t doppler_bin = G_Doppler + T_Doppler;
+            doppler_bin < doppler_bins - (G_Doppler + T_Doppler);
+            ++doppler_bin
+        )
+        {
+            // thread마다 별도로 생성되는 local 변수
+            float training_sum = 0.0f;
+
+            // CUT Cell
+            size_t cut =
+                doppler_bins * range_bin + doppler_bin;
+
+
+            // Training Cell 합산
             for (
-                size_t range_cell = range_bin - (G_Range + T_Range); 
-                range_cell <= range_bin + G_Range + T_Range; 
-                ++range_cell)
+                size_t range_cell =
+                    range_bin - (G_Range + T_Range);
+
+                range_cell <=
+                    range_bin + G_Range + T_Range;
+
+                ++range_cell
+            )
             {
                 for (
-                    size_t doppler_cell = doppler_bin - (G_Doppler + T_Doppler); 
-                    doppler_cell <= doppler_bin + (G_Doppler + T_Doppler);
+                    size_t doppler_cell =
+                        doppler_bin - (G_Doppler + T_Doppler);
+
+                    doppler_cell <=
+                        doppler_bin + G_Doppler + T_Doppler;
+
                     ++doppler_cell
-                    )
+                )
                 {
-                    // Guard Cell 구역이나, Cut Cell 이면 continue
-                    // T 구역이면 합산
-                    size_t training_idx = doppler_bins * range_cell + doppler_cell;     // T 좌표
-                    if ( 
-                        range_cell >=  range_bin - G_Range && 
+                    size_t training_idx =
+                        doppler_bins * range_cell
+                        + doppler_cell;
+
+
+                    // Guard Cell + CUT 영역 제외
+                    if (
+                        range_cell >= range_bin - G_Range &&
                         range_cell <= range_bin + G_Range &&
                         doppler_cell >= doppler_bin - G_Doppler &&
                         doppler_cell <= doppler_bin + G_Doppler
                     )
                     {
                         continue;
-                    }else{
-                        training_sum += power_[training_idx];
                     }
+
+                    training_sum +=
+                        power_[training_idx];
                 }
             }
-            float training_avg = training_sum / N_Cells;
-            if ( power_[cut] >= training_avg * alpha)
+
+
+            float training_avg =
+                training_sum / N_Cells;
+
+
+            // 각 CUT은 서로 다른 detections_ 위치에 쓰므로
+            // 별도 mutex 필요 없음
+            if (
+                power_[cut] >=
+                training_avg * alpha
+            )
             {
                 detections_[cut] = 1;
+            }
+        }
+    }
+
+
+    // ==================================================
+    // Detection vector 생성
+    //
+    // push_back을 parallel 영역에서 하지 않고
+    // 기존과 같은 range → doppler 순서로 수집
+    // ==================================================
+    for (
+        size_t range_bin = G_Range + T_Range;
+        range_bin < range_bins - (G_Range + T_Range);
+        ++range_bin
+    )
+    {
+        for (
+            size_t doppler_bin = G_Doppler + T_Doppler;
+            doppler_bin < doppler_bins - (G_Doppler + T_Doppler);
+            ++doppler_bin
+        )
+        {
+            size_t cut =
+                doppler_bins * range_bin + doppler_bin;
+
+            if (detections_[cut])
+            {
                 detected_points_.push_back(
                     {
                         range_bin,

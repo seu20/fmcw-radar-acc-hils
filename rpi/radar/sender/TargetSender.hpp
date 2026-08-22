@@ -27,7 +27,7 @@ private:
 
     std::optional<Target> find_LeadTarget(const std::vector<Target>& targets);
 
-    static constexpr float center_lane_distance_from_ego = 0.0f;
+    static constexpr float center_lane_distance_from_ego = 1.8f;
 public:
     TargetSender(
         ThreadSafeQueue<TargetFrame>& target_queue,
