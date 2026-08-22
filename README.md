@@ -5,7 +5,7 @@ MATLAB/Simulink 기반 주행 시뮬레이션 환경과 Raspberry Pi의 FMCW 레
 
 ## 프로젝트 개요
 
-본 프로젝트는 MATLAB/Simulink에서 FMCW 레이더 Raw IQ 데이터를 생성하고, 이를 UDP를 통해 Raspberry Pi로 전송한 뒤 C++ 기반 레이더 신호처리를 수행합니다.
+본 프로젝트는 MATLAB/Simulink에서 FMCW 레이더 Raw IQ 데이터를 생성하고, 이를 UDP를 통해 Raspberry Pi로 전송한 뒤 C++ 기반 레이더 신호처리를 수행합니다. OpenMP를 사용한 병렬 데이터처리를 통해 프로세스 속도를 획기적으로 줄였습니다.
 
 Raspberry Pi에서는 
 - 거리-도플러 처리
@@ -87,36 +87,26 @@ Lead Target Selection
 
 CFAR 처리 구간에는 OpenMP를 적용하여 처리시간을 단축했습니다.
 
-## Lead Target 선택
+## OpenMP 스레드 개수에 따른 데이터 처리 속도 비교
 
-ACC 제어에는 Ego 차량과 동일 차선에 존재하는 유효 타깃 중 가장 가까운 차량만 사용합니다.
-
-각 타깃의 횡방향 거리는 다음과 같이 계산합니다.
+기존 RadarProcessor의 주요 처리 시간은 다음과 같은 특징을 보였습니다.
 
 ```text
-lateral_distance = distance × sin(angle)
+Range FFT       ≈ 0.8 ms
+Doppler FFT     ≈ 1.0 ms
+CFAR            ≈ 22 ms
+DBSCAN          < 0.2 ms
+기타 처리       < 0.1 ms
 ```
 
-설정된 차선 범위를 벗어난 타깃은 Lead Target 후보에서 제외합니다.
+RadarProcessor의 처리 시간을 분석한 결과, 전체 연산 시간 중 **CFAR 단계가 가장 큰 병목 구간**임을 확인했습니다.
 
-Lead Target 출력 구조는 다음과 같습니다.
 
-```cpp
-struct LeadTargetFrame
-{
-    uint32_t frame_id;
-    uint8_t valid;
-    Target target;
-};
-```
+![OpenMP 속도 비교 그래프](docs/processor_time_openmp.png)
 
-`Target`에는 다음 정보가 포함됩니다.
+스레드를 하나씩 늘리면서 실험한 결과, **3개의 OpenMP 스레드를 사용했을 때 가장 좋은 성능**을 보였고, CFAR 처리 시간이 약 **22 ms → 12 ms 수준**으로 감소했으며, 전체 RadarProcessor 처리 시간 역시 약 **24 ms → 14 ms 수준**으로 감소했습니다.
 
-```text
-distance
-relative_velocity
-angle
-```
+이에 따라 CFAR의 Range-Doppler Cell 탐색 구간에 OpenMP를 적용하여 병렬화를 수행했습니다.
 
 ## UDP 통신
 
@@ -146,6 +136,46 @@ payload
 선택된 Lead Target 정보는 UDP를 통해 PC로 전송되며, Simulink의 ACC 제어 입력으로 사용됩니다.
 
 현재 구현에서는 UDP 포트 `3000`을 사용합니다.
+
+## Window Function 최적화: Hamming → Chebyshev
+
+Range FFT와 Doppler FFT 수행 시 발생하는 **Spectral Leakage**를 줄이기 위해 Window Function을 최적화했습니다.
+
+초기에는 Hamming Window를 사용했지만, 강한 Target Peak의 에너지가 Range 및 Doppler 방향의 주변 Bin으로 넓게 퍼지는 현상이 확인되었습니다. 이러한 Sidelobe Leakage는 CFAR의 Training Cell Power를 증가시켜 Threshold 계산에 영향을 주고, 안정적인 Target Detection을 어렵게 만들었습니다.
+
+<table>
+  <tr>
+    <th width="45%">Hamming Window</th>
+    <th width="10%"></th>
+    <th width="45%">Chebyshev Window</th>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/hamming_window.png" width="100%">
+    </td>
+    <td align="center">
+      <h1>→</h1>
+    </td>
+    <td align="center">
+      <img src="docs/chebyshev_window.png" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      Range/Doppler 방향으로<br>
+      Sidelobe Leakage 발생
+    </td>
+    <td align="center">
+      <b>Window 변경</b>
+    </td>
+    <td align="center">
+      Sidelobe가 억제되어<br>
+      Target Energy가 Peak 주변에 집중
+    </td>
+  </tr>
+</table>
+
+
 
 ## 멀티스레드 구조
 
