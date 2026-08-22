@@ -16,7 +16,10 @@ Raspberry Pi에서는
 - 최종 Lead Target 정보를 다시 PC로 전송하여 Simulink의 ACC 제어에 사용합니다.
 
 
-https://github.com/user-attachments/assets/86fb9d0b-226f-4506-aa52-d2fe75fbc1e9
+
+https://github.com/user-attachments/assets/f7aa48f5-a718-4ab4-9571-7d25efa47c04
+
+
 
 
 ## ACC 시나리오
