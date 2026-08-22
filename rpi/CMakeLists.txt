@@ -17,6 +17,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+find_package(OpenMP REQUIRED)
+
 find_library(
     FFTW3F_LIBRARY
     NAMES fftw3f
@@ -47,12 +49,14 @@ target_include_directories(radar_core
     radar/window
     radar/detection
     radar/clustering
+    radar/sender
 )
 
 target_link_libraries(radar_core
     PUBLIC
         Threads::Threads
         ${FFTW3F_LIBRARY}
+        OpenMP::OpenMP_CXX
 )
 
 # ==================================================
@@ -67,6 +71,9 @@ target_link_libraries(radar_rpi
     PRIVATE
         radar_core
 )
+
+#[[
+
 # ==================================================
 # GoogleTest
 # ==================================================
@@ -193,3 +200,4 @@ target_link_libraries(angle_test
 
 gtest_discover_tests(angle_test)
 
+]]
