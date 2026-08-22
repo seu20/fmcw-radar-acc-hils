@@ -125,6 +125,14 @@ void RadarProcessor::process(const RadarFrame& frame)
     Doppler_FFT();
     // 3. CFAR을 이용한 threshold 이상의 real target 검출
     CFAR();
+
+    power_map_queue_.push(
+        {
+            frame.frame_id,
+            power_
+        }
+    );
+
     // 4. DBSCAN을 활용한 clustering
     dbscan_.scan(detected_points_);
     // 5. Peak Detection - 각 cluster 중 power 가 가장 큰 peak 검출

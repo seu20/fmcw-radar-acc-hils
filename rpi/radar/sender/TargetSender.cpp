@@ -5,7 +5,7 @@
 #include <cmath>
 #include <iostream>
 #include <optional>
-
+#include <iomanip>
 
 void *TargetSender::thread_func_(void *arg)
 {
@@ -123,6 +123,50 @@ void TargetSender::run()
             lead_target_frame.valid = true;
             lead_target_frame.target = target.value();
         }
+
+        // 터미널 화면 지우기 + 커서를 왼쪽 위로 이동
+        std::cout << "\033[2J\033[H";
+
+        std::cout
+            << std::fixed
+            << std::setprecision(2);
+
+        std::cout
+            << "===== LEAD TARGET =====" << std::endl;
+
+        std::cout
+            << "Frame ID          : "
+            << lead_target_frame.frame_id
+            << std::endl;
+
+        std::cout
+            << "Valid             : "
+            << (lead_target_frame.valid ? "TRUE" : "FALSE")
+            << std::endl;
+
+        std::cout
+            << "Distance          : "
+            << lead_target_frame.target.distance
+            << " m"
+            << std::endl;
+
+        std::cout
+            << "Relative Velocity : "
+            << lead_target_frame.target.relative_velocity
+            << " m/s"
+            << std::endl;
+
+        std::cout
+            << "Angle             : "
+            << lead_target_frame.target.angle
+            << " rad"
+            << std::endl;
+
+        std::cout
+            << "======================="
+            << std::endl;
+
+        std::cout.flush();
 
 
         // LeadTargetFrame을 byte buffer로 보고 UDP 송신

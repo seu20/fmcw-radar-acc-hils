@@ -34,6 +34,7 @@ add_library(radar_core
     radar/receiver/PacketReceiver.cpp
     radar/clustering/DBSCAN.cpp
     radar/sender/TargetSender.cpp
+    radar/sender/PowerMapSender.cpp
     network/UDPSocket.cpp
 )
 
