@@ -1,7 +1,13 @@
 
+
+
 # FMCW Radar ACC HILS
 
 MATLAB/Simulink 기반 주행 시뮬레이션 환경과 Raspberry Pi의 FMCW 레이더 신호처리 파이프라인을 연결한 Adaptive Cruise Control(ACC) HILS 프로젝트입니다.
+
+---
+https://github.com/user-attachments/assets/dbeb79f2-055b-477b-98ce-0325235ba6bb
+
 
 ## 프로젝트 개요
 
@@ -17,7 +23,6 @@ Raspberry Pi에서는
 
 
 
-https://github.com/user-attachments/assets/f7aa48f5-a718-4ab4-9571-7d25efa47c04
 
 
 
